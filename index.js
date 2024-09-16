@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const adminRoutes = require('./routes/adminRoutes');
 const formulaRoutes=require('./routes/formulParameterRoutes')
+const transferRoutes = require('./routes/transferRoute');
 const { sendErrorResponse } = require('./utils/responseUtils');
 require('dotenv').config()
 const app = express();
@@ -12,7 +13,10 @@ app.use(bodyParser.json());
  
 // Routes
 app.use('/admin', adminRoutes);
-app.use('/admin',formulaRoutes)
+app.use('/admin',formulaRoutes);
+
+// this is for the funeral homes 
+app.use('/funeralHome', transferRoutes);
 
 app.use((req, res, next) => {
     sendErrorResponse(res, 404, 'Route not found');
