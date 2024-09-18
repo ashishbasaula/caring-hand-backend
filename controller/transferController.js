@@ -4,19 +4,34 @@ const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUti
 const db = require('../models/db');  
 
 // Create a new transfer
-exports.createTransfer = (req, res) => {
-  const { funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time } = req.body;
+// controller/transferController.js
 
-  if (!funeral_home_id || !pickup_location || !delivery_location || !scheduled_time) {
+exports.createTransfer = (req, res) => {
+  const { 
+    funeral_home_id, agent_id, pickup_location, delivery_location, 
+    scheduled_time, distance, weight, price, doc 
+  } = req.body;
+
+  // Check for required fields, but allow agent_id and doc to be null
+  if (!funeral_home_id || !pickup_location || !delivery_location || !scheduled_time || !distance || !weight || !price) {
     return sendErrorResponse(res, 400, 'All required fields are not provided');
   }
 
-  const query = 'INSERT INTO transfers (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time) VALUES (?, ?, ?, ?, ?)';
-  db.query(query, [funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time], (err, results) => {
-    if (err) return sendErrorResponse(res, 500, 'Error creating transfer', err.message);
-    sendSuccessResponse(res, 201, { id: results.insertId }, 'Transfer created successfully');
-  });
+  // Prepare the SQL query with optional fields
+  const query = `
+    INSERT INTO transfers 
+    (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  db.query(query, 
+    [funeral_home_id, agent_id || null, pickup_location, delivery_location, scheduled_time, distance, weight, price, doc || null], 
+    (err, results) => {
+      if (err) return sendErrorResponse(res, 500, 'Error creating transfer', err.message);
+      sendSuccessResponse(res, 201, { id: results.insertId }, 'Transfer created successfully');
+    }
+  );
 };
+
 
 // Get all transfers
 exports.getAllTransfers = (req, res) => {
@@ -37,16 +52,33 @@ exports.getTransferById = (req, res) => {
   });
 };
 
+exports.getTransferByFuneralHomeId = (req, res) => {
+  const { id, status } = req.query;
+
+  let query = 'SELECT * FROM transfers  WHERE funeral_home_id = ?';
+  let queryParams = [id];
+
+  // If the status is provided, add it to the query
+  if (status !== undefined) {
+    query += ' AND status = ?';
+    queryParams.push(status);
+  }
+  query += ' ORDER BY created_at DESC';
+  db.query(query, queryParams, (err, results) => {
+    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
+    if (results.length === 0) return sendSuccessResponse(res, 200, results, 'Retrieved transfer');
+    sendSuccessResponse(res, 200, results, 'Retrieved transfer');
+  });
+};
+
 // Update transfer details
 exports.updateTransfer = (req, res) => {
     const { id } = req.query;
-    const { agent_id, pickup_location, delivery_location, scheduled_time, status } = req.body;
+    const { agent_id, pickup_location, delivery_location, scheduled_time, status, distance, weight, price } = req.body;
   
-    // Start with an array of fields to update and their corresponding values
     let updateFields = [];
     let updateValues = [];
   
-    // Add fields to updateFields and updateValues only if they are present in the request body
     if (agent_id !== undefined) {
       updateFields.push('agent_id = ?');
       updateValues.push(agent_id);
@@ -67,26 +99,32 @@ exports.updateTransfer = (req, res) => {
       updateFields.push('status = ?');
       updateValues.push(status);
     }
+    if (distance !== undefined) {
+      updateFields.push('distance = ?');
+      updateValues.push(distance);
+    }
+    if (weight !== undefined) {
+      updateFields.push('weight = ?');
+      updateValues.push(weight);
+    }
+    if (price !== undefined) {
+      updateFields.push('price = ?');
+      updateValues.push(price);
+    }
   
-    // Ensure there are fields to update
     if (updateFields.length === 0) {
       return sendErrorResponse(res, 400, 'No fields to update');
     }
   
-    // Add the ID to the values
     updateValues.push(id);
-  
-    // Construct the SQL query with dynamic field updates
     const query = `UPDATE transfers SET ${updateFields.join(', ')} WHERE id = ?`;
   
-    // Execute the query
     db.query(query, updateValues, (err, results) => {
       if (err) return sendErrorResponse(res, 500, 'Error updating transfer', err.message);
       if (results.affectedRows === 0) return sendErrorResponse(res, 404, 'Transfer not found');
       sendSuccessResponse(res, 200, null, 'Transfer updated successfully');
     });
-  };
-  
+};
 
 // Delete a transfer
 exports.deleteTransfer = (req, res) => {

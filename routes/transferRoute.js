@@ -7,7 +7,8 @@ const {
   getAllTransfers,
   getTransferById,
   updateTransfer,
-  deleteTransfer
+  deleteTransfer,
+  getTransferByFuneralHomeId
 } = require('../controller/transferController');
 const authenticateToken = require('../middleware/authMiddleware');
 
@@ -15,6 +16,7 @@ const authenticateToken = require('../middleware/authMiddleware');
 router.post('/transfers', authenticateToken, createTransfer);
 router.get('/transfers', authenticateToken, getAllTransfers);
 router.get('/transfersById', authenticateToken, getTransferById);
+router.get('/transfersByFuneralHomeId', authenticateToken, getTransferByFuneralHomeId);
 router.patch('/transfers', authenticateToken, updateTransfer);
 router.delete('/transfers', authenticateToken, deleteTransfer);
 

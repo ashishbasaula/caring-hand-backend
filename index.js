@@ -4,6 +4,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const formulaRoutes=require('./routes/formulParameterRoutes')
 const transferRoutes = require('./routes/transferRoute');
 const fileRoutes = require('./routes/fileUploadRoute');
+const funeralHomeReport=require('./routes/funeralHomeReportRoute')
 const path = require('path');
 
 const { sendErrorResponse } = require('./utils/responseUtils');
@@ -24,6 +25,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/files', fileRoutes);
+
+// this is for the report generation 
+app.use('/report', funeralHomeReport);
 
 app.use((req, res, next) => {
     sendErrorResponse(res, 404, 'Route not found');
