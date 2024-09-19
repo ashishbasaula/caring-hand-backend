@@ -35,11 +35,26 @@ exports.createTransfer = (req, res) => {
 
 // Get all transfers
 exports.getAllTransfers = (req, res) => {
-  db.query('SELECT * FROM transfers', (err, results) => {
+  const { status } = req.query;
+ 
+
+  let query = 'SELECT * FROM transfers';
+  let queryParams = [];
+
+  // If the status is provided, add it to the query
+  if (status !== undefined && status!=="null") {
+    query += ' WHERE status = ?';
+    queryParams.push(status);
+  }
+
+  query += ' ORDER BY created_at DESC';
+
+  db.query(query, queryParams, (err, results) => {
     if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
     sendSuccessResponse(res, 200, results, 'Retrieved all transfers');
   });
 };
+
 
 // Get a transfer by ID
 exports.getTransferById = (req, res) => {
