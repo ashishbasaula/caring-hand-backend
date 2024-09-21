@@ -35,25 +35,80 @@ exports.createTransfer = (req, res) => {
 
 // Get all transfers
 exports.getAllTransfers = (req, res) => {
-  const { status } = req.query;
- 
+  const { 
+    status, 
+    funeral_home_id, 
+    agent_id, 
+    pickup_location, 
+    delivery_location, 
+    start_date, 
+    end_date, 
+    isUpcoming  
+  } = req.query;
 
-  let query = 'SELECT * FROM transfers';
+  let query = 'SELECT * FROM transfers WHERE 1=1'; // 1=1 makes appending AND clauses easier
   let queryParams = [];
 
-  // If the status is provided, add it to the query
-  if (status !== undefined && status!=="null") {
-    query += ' WHERE status = ?';
+  // Conditionally append filters
+  if (status && status !== "null") {
+    query += ' AND status = ?';
     queryParams.push(status);
   }
+  
+  if (funeral_home_id) {
+    query += ' AND funeral_home_id = ?';
+    queryParams.push(funeral_home_id);
+  }
 
+  if (agent_id !== undefined && agent_id !== null) {
+    if (agent_id !== "all") {
+      // Filter for a specific agent
+      query += ' AND agent_id = ?';
+      queryParams.push(agent_id);
+    } else {
+      // Ensure it excludes null values
+      query += ' AND agent_id IS NOT NULL';
+    }
+  }
+
+  if (pickup_location) {
+    query += ' AND pickup_location LIKE ?';
+    queryParams.push(`%${pickup_location}%`);
+  }
+
+  if (delivery_location) {
+    query += ' AND delivery_location LIKE ?';
+    queryParams.push(`%${delivery_location}%`);
+  }
+
+  // Filter by date range if provided
+  if (start_date && end_date) {
+    query += ' AND created_at BETWEEN ? AND ?';
+    queryParams.push(start_date, end_date);
+  } else if (start_date) {
+    query += ' AND created_at >= ?';
+    queryParams.push(start_date);
+  } else if (end_date) {
+    query += ' AND created_at <= ?';
+    queryParams.push(end_date);
+  }
+
+  // Check if the transfer is upcoming
+  if (isUpcoming === "true") {
+    query += ' AND scheduled_time > NOW()';
+  }
+
+  // Sort by creation date in descending order
   query += ' ORDER BY created_at DESC';
+ console.log(query);
 
+  // Execute the query
   db.query(query, queryParams, (err, results) => {
     if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
     sendSuccessResponse(res, 200, results, 'Retrieved all transfers');
   });
 };
+
 
 
 // Get a transfer by ID

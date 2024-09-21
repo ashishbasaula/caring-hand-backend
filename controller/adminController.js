@@ -33,11 +33,38 @@ exports.login = (req, res) => {
 
 // fetch user 
 exports.getUsers = (req, res) => {
-    db.query('SELECT * FROM users', (err, results) => {
-      if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
-      return sendSuccessResponse(res, 200, results);
-    });
-  };
+  const { id, role, status, name } = req.query; // Extract filters from query params
+
+  let query = 'SELECT * FROM users WHERE 1 = 1'; // Default query, '1 = 1' ensures additional conditions can be appended easily
+  let queryParams = [];
+
+  // Add filters dynamically based on query parameters
+  if (id) {
+    query += ' AND id = ?';
+    queryParams.push(id);
+  }
+
+  if (role) {
+    query += ' AND role = ?';
+    queryParams.push(role);
+  }
+
+  if (status) {
+    query += ' AND status = ?';
+    queryParams.push(status);
+  }
+
+  if (name) {
+    query += ' AND name LIKE ?';
+    queryParams.push(`%${name}%`); // Allow partial matching for name
+  }
+
+  db.query(query, queryParams, (err, results) => {
+    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
+    return sendSuccessResponse(res, 200, results, 'Users retrieved successfully');
+  });
+};
+
   //add user 
   exports.addUser = (req, res) => {
     const { name, role, email, phone, password } = req.body;
