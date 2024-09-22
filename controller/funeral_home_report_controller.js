@@ -2,102 +2,78 @@
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
 const db = require('../models/db');
 
-exports.getFuneralHomeSummaryReport = (req, res) => {
-  const { funeral_home_id, period } = req.query;
+exports.getSummaryReport = (req, res) => {
+  const { funeral_home_id, agent_id, period } = req.query;
 
-  // Validate required fields
-  if (!funeral_home_id) {
-    return sendErrorResponse(res, 400, 'funeral_home_id is required');
-  }
-
-  // Define the query and parameters based on the selected period
+  // Determine the query and parameters based on whether funeral_home_id, agent_id, or neither is passed
   let query, queryParams;
 
+  // Define the base query, which will be extended based on the context
+  let baseQuery = `
+    SELECT 
+      COUNT(*) AS total_transfers,
+      SUM(price) AS total_price,
+  `;
+
+  // Add period groupings based on the requested period
   switch (period) {
     case 'weekly':
-      query = `
-        SELECT 
-          COUNT(*) AS total_transfers,
-          SUM(price) AS total_price,
-          WEEK(created_at) AS period
-        FROM transfers 
-        WHERE funeral_home_id = ?
-        AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND CURDATE()
-        GROUP BY WEEK(created_at)
-      `;
-      queryParams = [funeral_home_id];
+      baseQuery += `WEEK(created_at) AS period `;
       break;
 
     case 'monthly':
-      query = `
-        SELECT 
-          COUNT(*) AS total_transfers,
-          SUM(price) AS total_price,
-          MONTH(created_at) AS period
-        FROM transfers 
-        WHERE funeral_home_id = ?
-        AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND CURDATE()
-        GROUP BY MONTH(created_at)
-      `;
-      queryParams = [funeral_home_id];
+      baseQuery += `MONTH(created_at) AS period `;
       break;
 
     case 'yearly':
-      query = `
-        SELECT 
-          COUNT(*) AS total_transfers,
-          SUM(price) AS total_price,
-          YEAR(created_at) AS period
-        FROM transfers 
-        WHERE funeral_home_id = ?
-        AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND CURDATE()
-        GROUP BY YEAR(created_at)
-      `;
-      queryParams = [funeral_home_id];
+      baseQuery += `YEAR(created_at) AS period `;
       break;
 
     case 'hourly':
-      query = `
-        SELECT 
-          COUNT(*) AS total_transfers,
-          SUM(price) AS total_price,
-          HOUR(created_at) AS period
-        FROM transfers 
-        WHERE funeral_home_id = ?
-        AND created_at BETWEEN CURDATE() AND NOW()
-        GROUP BY HOUR(created_at)
-        ORDER BY HOUR(created_at)
-      `;
-      queryParams = [funeral_home_id];
+      baseQuery += `HOUR(created_at) AS period `;
       break;
 
     case 'daily':
-      query = `
-        SELECT 
-          COUNT(*) AS total_transfers,
-          SUM(price) AS total_price,
-          DATE(created_at) AS period
-        FROM transfers 
-        WHERE funeral_home_id = ?
-        AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND CURDATE()
-        GROUP BY DATE(created_at)
-      `;
-      queryParams = [funeral_home_id];
-      break;
-
     default:
-      // Default to daily report
-      query = `
-        SELECT 
-          COUNT(*) AS total_transfers,
-          SUM(price) AS total_price,
-          DATE(created_at) AS period
-        FROM transfers 
-        WHERE funeral_home_id = ?
-        AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND CURDATE()
-        GROUP BY DATE(created_at)
-      `;
-      queryParams = [funeral_home_id];
+      baseQuery += `DATE(created_at) AS period `;
+      break;
+  }
+
+  baseQuery += `FROM transfers WHERE `; // Start the WHERE clause
+
+  // Determine which condition to apply based on the input
+  if (funeral_home_id) {
+    // If funeral_home_id is passed, fetch report for the funeral home
+    query = baseQuery + `funeral_home_id = ? `;
+    queryParams = [funeral_home_id];
+  } else if (agent_id) {
+    // If agent_id is passed, fetch report for the transport agent
+    query = baseQuery + `agent_id = ? `;
+    queryParams = [agent_id];
+  } else {
+    // If neither funeral_home_id nor agent_id is passed, fetch report for the admin (all transfers)
+    query = baseQuery + `1=1 `; // 1=1 means no specific condition (select all records)
+    queryParams = [];
+  }
+
+  // Add date filtering based on the period
+  switch (period) {
+    case 'weekly':
+      query += `AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND CURDATE() GROUP BY WEEK(created_at)`;
+      break;
+    case 'monthly':
+      query += `AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND CURDATE() GROUP BY MONTH(created_at)`;
+      break;
+    case 'yearly':
+      query += `AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND CURDATE() GROUP BY YEAR(created_at)`;
+      break;
+    case 'hourly':
+      query += `AND created_at BETWEEN CURDATE() AND NOW() GROUP BY HOUR(created_at) ORDER BY HOUR(created_at)`;
+      break;
+    case 'daily':
+    default:
+      query += `AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND CURDATE() GROUP BY DATE(created_at)`;
+      break;
   }
 
   // Execute the query
@@ -111,6 +87,6 @@ exports.getFuneralHomeSummaryReport = (req, res) => {
     }
 
     // Send success response with report summary data
-    sendSuccessResponse(res, 200, results, 'Funeral home report summary retrieved successfully');
+    sendSuccessResponse(res, 200, results, 'Summary report retrieved successfully');
   });
 };

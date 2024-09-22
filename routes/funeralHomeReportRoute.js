@@ -5,6 +5,6 @@ const authenticateToken = require('../middleware/authMiddleware');
 const router = express.Router();
 
 // GET summary report for a funeral home (daily, weekly, monthly, yearly)
-router.get('/funeral-home-summary',authenticateToken, reportController.getFuneralHomeSummaryReport);
+router.get('/funeral-home-summary',authenticateToken, reportController.getSummaryReport);
 
 module.exports = router;

@@ -144,7 +144,7 @@ exports.getTransferByFuneralHomeId = (req, res) => {
 // Update transfer details
 exports.updateTransfer = (req, res) => {
     const { id } = req.query;
-    const { agent_id, pickup_location, delivery_location, scheduled_time, status, distance, weight, price } = req.body;
+    const { agent_id, pickup_location, delivery_location, scheduled_time, status, distance, weight, price,compliences } = req.body;
   
     let updateFields = [];
     let updateValues = [];
@@ -180,6 +180,10 @@ exports.updateTransfer = (req, res) => {
     if (price !== undefined) {
       updateFields.push('price = ?');
       updateValues.push(price);
+    }
+    if (compliences !== undefined) {
+      updateFields.push('compliances = ?');
+      updateValues.push(compliences);
     }
   
     if (updateFields.length === 0) {
