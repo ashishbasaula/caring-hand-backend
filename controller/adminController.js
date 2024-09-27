@@ -155,7 +155,103 @@ exports.getUsers = (req, res) => {
       res.status(200).send({ message: 'User deleted successfully' });
     });
   };
+ 
+
+// Function to change user password
+exports.changePassword = (req, res) => {
+  const { userId } = req.query;
+  const { old_password, new_password } = req.body;
+
+  // Validate request
+  if (!old_password || !new_password) {
+    return sendErrorResponse(res, 400, 'Old and new passwords are required');
+  }
+
+  // Step 1: Fetch the user's current password hash from the database
+  db.query('SELECT password FROM users WHERE id = ?', [userId], (err, results) => {
+    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
+    
+    if (results.length === 0) {
+      return sendErrorResponse(res, 404, 'User not found');
+    }
+
+    const currentPasswordHash = results[0].password;
+
+    // Step 2: Compare the old password with the current password hash
+    const isPasswordValid = bcrypt.compareSync(old_password, currentPasswordHash);
+    if (!isPasswordValid) {
+      return sendErrorResponse(res, 401, 'Old password is incorrect');
+    }
+
+    // Step 3: Hash the new password
+    const salt = bcrypt.genSaltSync(10);
+    const newPasswordHash = bcrypt.hashSync(new_password, salt);
+
+    // Step 4: Update the password in the database
+    db.query(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [newPasswordHash, userId],
+      (err, result) => {
+        if (err) return sendErrorResponse(res, 500, 'Error updating password', err.message);
+
+        if (result.affectedRows === 0) {
+          return sendErrorResponse(res, 404, 'User not found');
+        }
+
+        // Step 5: Return success response
+        sendSuccessResponse(res, 200, null, 'Password updated successfully');
+      }
+    );
+  });
+};
+
+exports.addNotificationToken = (req, res) => {
+  const { id } = req.query;  // User ID from query params
+  const { token } = req.body; // New token from request body
+
+  if (!id || !token) {
+    return res.status(400).send({ message: 'User ID and token are required' });
+  }
+
+  // Step 1: Get the existing notification tokens for the user
+  const getUserQuery = 'SELECT notification_tokens FROM users WHERE id = ?';
   
+  db.query(getUserQuery, [id], (err, results) => {
+    if (err) {
+      console.error('Error fetching user:', err.message);
+      return res.status(500).send({ message: 'Error fetching user', error: err.message });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    // Parse existing tokens (if any)
+    let existingTokens = [];
+    if (results[0].notification_tokens) {
+      existingTokens = JSON.parse(results[0].notification_tokens);
+    }
+
+    // Step 2: Check if the token already exists
+    if (existingTokens.includes(token)) {
+      return res.status(200).send({ message: 'Token already exists' });
+    }
+
+    // Step 3: Add the new token to the array
+    existingTokens.push(token);
+
+    // Step 4: Update the user's notification_tokens field
+    const updateQuery = 'UPDATE users SET notification_tokens = ? WHERE id = ?';
+    db.query(updateQuery, [JSON.stringify(existingTokens), id], (err, updateResults) => {
+      if (err) {
+        console.error('Error updating notification tokens:', err.message);
+        return res.status(500).send({ message: 'Error updating notification tokens', error: err.message });
+      }
+
+      res.status(200).send({ message: 'Notification token added successfully' });
+    });
+  });
+};
 
   
 

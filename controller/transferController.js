@@ -9,7 +9,7 @@ const db = require('../models/db');
 exports.createTransfer = (req, res) => {
   const { 
     funeral_home_id, agent_id, pickup_location, delivery_location, 
-    scheduled_time, distance, weight, price, doc 
+    scheduled_time, distance, weight, price, doc ,pick_lat,pick_long,drop_lat,drop_long
   } = req.body;
 
   // Check for required fields, but allow agent_id and doc to be null
@@ -20,11 +20,11 @@ exports.createTransfer = (req, res) => {
   // Prepare the SQL query with optional fields
   const query = `
     INSERT INTO transfers 
-    (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents,pickup_lat,pickup_lng,drop_lat,drop_lng) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)
   `;
   db.query(query, 
-    [funeral_home_id, agent_id || null, pickup_location, delivery_location, scheduled_time, distance, weight, price, doc || null], 
+    [funeral_home_id, agent_id || null, pickup_location, delivery_location, scheduled_time, distance, weight, price, doc,pick_lat,pick_long,drop_lat,drop_long || null], 
     (err, results) => {
       if (err) return sendErrorResponse(res, 500, 'Error creating transfer', err.message);
       sendSuccessResponse(res, 201, { id: results.insertId }, 'Transfer created successfully');
