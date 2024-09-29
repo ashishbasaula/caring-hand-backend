@@ -6,7 +6,9 @@ const connection = mysql.createConnection({
   password: 'ashish54321',  
   database: 'caring_hands',  
   port: 3306,
-  connectTimeout:60000,               
+  connectTimeout:60000,         
+  enableKeepAlive:true,
+  keepAliveInitialDelay: 10000,      
   ssl: {
     rejectUnauthorized: false 
   }
