@@ -1,8 +1,8 @@
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
-const db = require('../models/db');
+const { executeQuery } = require('../models/db'); // Assuming executeQuery is defined for handling DB queries
 
 // Function to calculate price for the transfer based on parameters
-exports.calculateTransferCost = (req, res) => {
+exports.calculateTransferCost = async (req, res) => {
   const { serviceType, mileage, isHeavyBody, decomposition, leakingFluids, bodyOver250lbs } = req.body;
 
   // Validate required parameters
@@ -10,15 +10,15 @@ exports.calculateTransferCost = (req, res) => {
     return sendErrorResponse(res, 400, 'Missing required parameters');
   }
 
-  // Step 1: Fetch pricing parameters for the specified service type
-  db.query('SELECT * FROM pricing_parameters WHERE service_type = ?', [serviceType], (err, results) => {
-    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
+  try {
+    // Step 1: Fetch pricing parameters for the specified service type
+    const pricingResults = await executeQuery('SELECT * FROM pricing_parameters WHERE service_type = ?', [serviceType]);
 
-    if (results.length === 0) {
+    if (pricingResults.length === 0) {
       return sendErrorResponse(res, 404, 'Service type not found');
     }
 
-    const pricing = results[0];
+    const pricing = pricingResults[0];
 
     // Step 2: Initialize base cost and extra costs (ensure they are numbers)
     let baseCost = parseFloat(pricing.base_rate) || 0;  // Ensure baseCost is a number
@@ -52,5 +52,8 @@ exports.calculateTransferCost = (req, res) => {
 
     // Return the calculated cost, formatted to two decimal places
     sendSuccessResponse(res, 200, { cost: totalCost.toFixed(2) }, 'Cost calculated successfully');
-  });
+  } catch (err) {
+    // Handle database or other server errors
+    return sendErrorResponse(res, 500, 'Server error', err.message);
+  }
 };

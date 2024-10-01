@@ -1,8 +1,8 @@
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
-const db = require('../models/db');
+const { executeQuery } = require('../models/db');
 
 // Create new pricing parameter
-exports.createPricingParameter =   (req, res) => {
+exports.createPricingParameter = async (req, res) => {
   const { service_type, base_rate, mileage_rate, heavy_body_charge, decomposition_charge, leaking_fluids_charge, body_over_250lbs_charge } = req.body;
 
   if (!service_type || base_rate === undefined || mileage_rate === undefined) {
@@ -10,7 +10,7 @@ exports.createPricingParameter =   (req, res) => {
   }
 
   try {
-      db.query(
+    await executeQuery(
       'INSERT INTO pricing_parameters (service_type, base_rate, mileage_rate, heavy_body_charge, decomposition_charge, leaking_fluids_charge, body_over_250lbs_charge) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [service_type, base_rate, mileage_rate, heavy_body_charge, decomposition_charge, leaking_fluids_charge, body_over_250lbs_charge]
     );
@@ -22,7 +22,7 @@ exports.createPricingParameter =   (req, res) => {
 };
 
 // Get all pricing parameters or a specific one by ID
-exports.getPricingParameters = (req, res) => {
+exports.getPricingParameters = async (req, res) => {
   const { id } = req.query;
 
   let query = 'SELECT * FROM pricing_parameters';
@@ -33,22 +33,21 @@ exports.getPricingParameters = (req, res) => {
     queryParams.push(id);
   }
 
-  db.query(query, queryParams, (error, results) => {
-    if (error) {
-      return sendErrorResponse(res, 500, 'Server error', error.message);
-    }
+  try {
+    const results = await executeQuery(query, queryParams);
 
     if (results.length === 0) {
-      return sendSuccessResponse(res, 200,results, 'Pricing parameter not found');
+      return sendSuccessResponse(res, 200, results, 'Pricing parameter not found');
     }
 
     sendSuccessResponse(res, 200, results, 'Pricing parameters retrieved successfully');
-  });
+  } catch (error) {
+    sendErrorResponse(res, 500, 'Server error', error.message);
+  }
 };
 
-
 // Update existing pricing parameter by ID
-exports.updatePricingParameter = (req, res) => {
+exports.updatePricingParameter = async (req, res) => {
   const { id } = req.query;  // Adjusted to `req.query` for query parameters
   const {
     service_type,
@@ -112,23 +111,21 @@ exports.updatePricingParameter = (req, res) => {
     WHERE id = ?
   `;
 
-  // Execute query without async/await
-  db.query(query, values, (error, result) => {
-    if (error) {
-      return sendErrorResponse(res, 500, 'Server error', error.message);
-    }
+  try {
+    const result = await executeQuery(query, values);
 
     if (result.affectedRows === 0) {
       return sendErrorResponse(res, 404, 'Pricing parameter not found');
     }
 
     sendSuccessResponse(res, 200, null, 'Pricing parameter updated successfully');
-  });
+  } catch (error) {
+    sendErrorResponse(res, 500, 'Server error', error.message);
+  }
 };
 
-
 // Delete a pricing parameter by ID
-exports.deletePricingParameter =   (req, res) => {
+exports.deletePricingParameter = async (req, res) => {
   const { id } = req.query;
 
   if (!id) {
@@ -136,18 +133,13 @@ exports.deletePricingParameter =   (req, res) => {
   }
 
   try {
-       db.query('DELETE FROM pricing_parameters WHERE id = ?', [id],(error,result)=>{
-        if (error) {
-          return sendErrorResponse(res, 500, 'Server error', error.message);
-        }
-      if (result.affectedRows === 0) {
-        return sendErrorResponse(res, 404, 'Pricing parameter not found');
-      }
-  
-      sendSuccessResponse(res, 200, null, 'Pricing parameter deleted successfully');
-    });
+    const result = await executeQuery('DELETE FROM pricing_parameters WHERE id = ?', [id]);
 
+    if (result.affectedRows === 0) {
+      return sendErrorResponse(res, 404, 'Pricing parameter not found');
+    }
 
+    sendSuccessResponse(res, 200, null, 'Pricing parameter deleted successfully');
   } catch (err) {
     sendErrorResponse(res, 500, 'Server error', err.message);
   }

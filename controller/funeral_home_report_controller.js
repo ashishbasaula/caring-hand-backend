@@ -1,62 +1,53 @@
-// controller/reportController.js
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
-const db = require('../models/db');
+const { executeQuery } = require('../models/db');
 
-exports.getSummaryReport = (req, res) => {
+exports.getSummaryReport = async (req, res) => {
   const { funeral_home_id, agent_id, period } = req.query;
 
-  // Determine the query and parameters based on whether funeral_home_id, agent_id, or neither is passed
-  let query, queryParams;
-
-  // Define the base query, which will be extended based on the context
+  // Base query to fetch the total transfers and price
   let baseQuery = `
     SELECT 
       COUNT(*) AS total_transfers,
       SUM(price) AS total_price,
   `;
 
-  // Add period groupings based on the requested period
+  // Define the period column based on the requested period
+  let periodColumn = '';
   switch (period) {
     case 'weekly':
-      baseQuery += `WEEK(created_at) AS period `;
+      periodColumn = 'WEEK(created_at) AS period';
       break;
-
     case 'monthly':
-      baseQuery += `MONTH(created_at) AS period `;
+      periodColumn = 'MONTH(created_at) AS period';
       break;
-
     case 'yearly':
-      baseQuery += `YEAR(created_at) AS period `;
+      periodColumn = 'YEAR(created_at) AS period';
       break;
-
     case 'hourly':
-      baseQuery += `HOUR(created_at) AS period `;
+      periodColumn = 'HOUR(created_at) AS period';
       break;
-
     case 'daily':
     default:
-      baseQuery += `DATE(created_at) AS period `;
+      periodColumn = 'DATE(created_at) AS period';
       break;
   }
 
-  baseQuery += `FROM transfers WHERE `; // Start the WHERE clause
+  baseQuery += `${periodColumn} FROM transfers WHERE `;
 
-  // Determine which condition to apply based on the input
+  // Define query parameters for filtering by funeral_home_id or agent_id
+  let query = '', queryParams = [];
+
   if (funeral_home_id) {
-    // If funeral_home_id is passed, fetch report for the funeral home
-    query = baseQuery + `funeral_home_id = ? `;
-    queryParams = [funeral_home_id];
+    query = baseQuery + 'funeral_home_id = ? ';
+    queryParams.push(funeral_home_id);
   } else if (agent_id) {
-    // If agent_id is passed, fetch report for the transport agent
-    query = baseQuery + `agent_id = ? `;
-    queryParams = [agent_id];
+    query = baseQuery + 'agent_id = ? ';
+    queryParams.push(agent_id);
   } else {
-    // If neither funeral_home_id nor agent_id is passed, fetch report for the admin (all transfers)
-    query = baseQuery + `1=1 `; // 1=1 means no specific condition (select all records)
-    queryParams = [];
+    query = baseQuery + '1=1 '; // No specific condition, fetch all records
   }
 
-  // Add date filtering based on the period
+  // Add date range and group by clause based on the requested period
   switch (period) {
     case 'weekly':
       query += `AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND CURDATE() GROUP BY WEEK(created_at)`;
@@ -68,7 +59,7 @@ exports.getSummaryReport = (req, res) => {
       query += `AND created_at BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND CURDATE() GROUP BY YEAR(created_at)`;
       break;
     case 'hourly':
-      query += `AND created_at BETWEEN CURDATE() AND NOW() GROUP BY HOUR(created_at) ORDER BY HOUR(created_at)`;
+      query += `AND created_at >= CURDATE() GROUP BY HOUR(created_at) ORDER BY HOUR(created_at)`;
       break;
     case 'daily':
     default:
@@ -76,17 +67,17 @@ exports.getSummaryReport = (req, res) => {
       break;
   }
 
-  // Execute the query
-  db.query(query, queryParams, (err, results) => {
-    if (err) {
-      return sendErrorResponse(res, 500, 'Server error', err.message);
-    }
+  try {
+    // Execute the query
+    const results = await executeQuery(query, queryParams);
 
     if (results.length === 0) {
       return sendErrorResponse(res, 404, 'No records found for the specified period');
     }
 
-    // Send success response with report summary data
+    // Send success response with the report data
     sendSuccessResponse(res, 200, results, 'Summary report retrieved successfully');
-  });
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Server error', err.message);
+  }
 };

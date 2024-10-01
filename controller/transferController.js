@@ -1,87 +1,71 @@
 // controller/transferController.js
 
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
-const db = require('../models/db');  
+const { executeQuery } = require('../models/db'); // Use executeQuery function
 
 // Create a new transfer
-// controller/transferController.js
-
-exports.createTransfer = (req, res) => {
+exports.createTransfer = async (req, res) => {
   const { 
     funeral_home_id, agent_id, pickup_location, delivery_location, 
-    scheduled_time, distance, weight, price, doc ,pick_lat,pick_long,drop_lat,drop_long
+    scheduled_time, distance, weight, price, doc, pick_lat, pick_long, drop_lat, drop_long
   } = req.body;
 
-  // Check for required fields, but allow agent_id and doc to be null
+  // Required fields validation
   if (!funeral_home_id || !pickup_location || !delivery_location || !scheduled_time || !distance || !weight || !price) {
     return sendErrorResponse(res, 400, 'All required fields are not provided');
   }
 
-  // Prepare the SQL query with optional fields
-  const query = `
-    INSERT INTO transfers 
-    (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents,pickup_lat,pickup_lng,drop_lat,drop_lng) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)
-  `;
-  db.query(query, 
-    [funeral_home_id, agent_id || null, pickup_location, delivery_location, scheduled_time, distance, weight, price, doc,pick_lat,pick_long,drop_lat,drop_long || null], 
-    (err, results) => {
-      if (err) return sendErrorResponse(res, 500, 'Error creating transfer', err.message);
-      sendSuccessResponse(res, 201, { id: results.insertId }, 'Transfer created successfully');
-    }
-  );
+  try {
+    // Insert the new transfer
+    const query = `
+      INSERT INTO transfers 
+      (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents, pickup_lat, pickup_lng, drop_lat, drop_lng) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const result = await executeQuery(query, [
+      funeral_home_id, agent_id || null, pickup_location, delivery_location, 
+      scheduled_time, distance, weight, price, doc, pick_lat, pick_long, drop_lat, drop_long
+    ]);
+
+    sendSuccessResponse(res, 201, { id: result.insertId }, 'Transfer created successfully');
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Error creating transfer', err.message);
+  }
 };
 
-
 // Get all transfers
-exports.getAllTransfers = (req, res) => {
+exports.getAllTransfers = async (req, res) => {
   const { 
-    status, 
-    funeral_home_id, 
-    agent_id, 
-    pickup_location, 
-    delivery_location, 
-    start_date, 
-    end_date, 
-    isUpcoming  
+    status, funeral_home_id, agent_id, pickup_location, delivery_location, 
+    start_date, end_date, isUpcoming 
   } = req.query;
 
-  let query = 'SELECT * FROM transfers WHERE 1=1'; // 1=1 makes appending AND clauses easier
-  let queryParams = [];
+  let query = 'SELECT * FROM transfers WHERE 1=1'; // Default clause to append conditions
+  const queryParams = [];
 
-  // Conditionally append filters
+  // Conditionally add filters
   if (status && status !== "null") {
     query += ' AND status = ?';
     queryParams.push(status);
   }
-  
   if (funeral_home_id) {
     query += ' AND funeral_home_id = ?';
     queryParams.push(funeral_home_id);
   }
-
-  if (agent_id !== undefined && agent_id !== null) {
-    if (agent_id !== "all") {
-      // Filter for a specific agent
-      query += ' AND agent_id = ?';
-      queryParams.push(agent_id);
-    } else {
-      // Ensure it excludes null values
-      query += ' AND agent_id IS NOT NULL';
-    }
+  if (agent_id && agent_id !== "all") {
+    query += ' AND agent_id = ?';
+    queryParams.push(agent_id);
+  } else if (agent_id === "all") {
+    query += ' AND agent_id IS NOT NULL';
   }
-
   if (pickup_location) {
     query += ' AND pickup_location LIKE ?';
     queryParams.push(`%${pickup_location}%`);
   }
-
   if (delivery_location) {
     query += ' AND delivery_location LIKE ?';
     queryParams.push(`%${delivery_location}%`);
   }
-
-  // Filter by date range if provided
   if (start_date && end_date) {
     query += ' AND created_at BETWEEN ? AND ?';
     queryParams.push(start_date, end_date);
@@ -92,121 +76,125 @@ exports.getAllTransfers = (req, res) => {
     query += ' AND created_at <= ?';
     queryParams.push(end_date);
   }
-
-  // Check if the transfer is upcoming
   if (isUpcoming === "true") {
     query += ' AND scheduled_time > NOW()';
   }
 
-  // Sort by creation date in descending order
   query += ' ORDER BY created_at DESC';
- console.log(query);
 
-  // Execute the query
-  db.query(query, queryParams, (err, results) => {
-    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
+  try {
+    const results = await executeQuery(query, queryParams);
     sendSuccessResponse(res, 200, results, 'Retrieved all transfers');
-  });
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Server error', err.message);
+  }
 };
-
-
 
 // Get a transfer by ID
-exports.getTransferById = (req, res) => {
+exports.getTransferById = async (req, res) => {
   const { id } = req.query;
 
-  db.query('SELECT * FROM transfers WHERE id = ?', [id], (err, results) => {
-    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
-    if (results.length === 0) return sendErrorResponse(res, 404, 'Transfer not found');
-    sendSuccessResponse(res, 200, results[0], 'Retrieved transfer');
-  });
+  try {
+    const result = await executeQuery('SELECT * FROM transfers WHERE id = ?', [id]);
+    if (result.length === 0) return sendErrorResponse(res, 404, 'Transfer not found');
+    sendSuccessResponse(res, 200, result[0], 'Retrieved transfer');
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Server error', err.message);
+  }
 };
 
-exports.getTransferByFuneralHomeId = (req, res) => {
+// Get transfers by Funeral Home ID
+exports.getTransferByFuneralHomeId = async (req, res) => {
   const { id, status } = req.query;
 
-  let query = 'SELECT * FROM transfers  WHERE funeral_home_id = ?';
-  let queryParams = [id];
+  let query = 'SELECT * FROM transfers WHERE funeral_home_id = ?';
+  const queryParams = [id];
 
-  // If the status is provided, add it to the query
-  if (status !== undefined) {
+  if (status) {
     query += ' AND status = ?';
     queryParams.push(status);
   }
+
   query += ' ORDER BY created_at DESC';
-  db.query(query, queryParams, (err, results) => {
-    if (err) return sendErrorResponse(res, 500, 'Server error', err.message);
-    if (results.length === 0) return sendSuccessResponse(res, 200, results, 'Retrieved transfer');
-    sendSuccessResponse(res, 200, results, 'Retrieved transfer');
-  });
+
+  try {
+    const results = await executeQuery(query, queryParams);
+    sendSuccessResponse(res, 200, results, 'Retrieved transfers');
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Server error', err.message);
+  }
 };
 
 // Update transfer details
-exports.updateTransfer = (req, res) => {
-    const { id } = req.query;
-    const { agent_id, pickup_location, delivery_location, scheduled_time, status, distance, weight, price,compliences } = req.body;
-  
-    let updateFields = [];
-    let updateValues = [];
-  
-    if (agent_id !== undefined) {
-      updateFields.push('agent_id = ?');
-      updateValues.push(agent_id);
-    }
-    if (pickup_location !== undefined) {
-      updateFields.push('pickup_location = ?');
-      updateValues.push(pickup_location);
-    }
-    if (delivery_location !== undefined) {
-      updateFields.push('delivery_location = ?');
-      updateValues.push(delivery_location);
-    }
-    if (scheduled_time !== undefined) {
-      updateFields.push('scheduled_time = ?');
-      updateValues.push(scheduled_time);
-    }
-    if (status !== undefined) {
-      updateFields.push('status = ?');
-      updateValues.push(status);
-    }
-    if (distance !== undefined) {
-      updateFields.push('distance = ?');
-      updateValues.push(distance);
-    }
-    if (weight !== undefined) {
-      updateFields.push('weight = ?');
-      updateValues.push(weight);
-    }
-    if (price !== undefined) {
-      updateFields.push('price = ?');
-      updateValues.push(price);
-    }
-    if (compliences !== undefined) {
-      updateFields.push('compliances = ?');
-      updateValues.push(compliences);
-    }
-  
-    if (updateFields.length === 0) {
-      return sendErrorResponse(res, 400, 'No fields to update');
-    }
-  
-    updateValues.push(id);
-    const query = `UPDATE transfers SET ${updateFields.join(', ')} WHERE id = ?`;
-  
-    db.query(query, updateValues, (err, results) => {
-      if (err) return sendErrorResponse(res, 500, 'Error updating transfer', err.message);
-      if (results.affectedRows === 0) return sendErrorResponse(res, 404, 'Transfer not found');
-      sendSuccessResponse(res, 200, null, 'Transfer updated successfully');
-    });
+exports.updateTransfer = async (req, res) => {
+  const { id } = req.query;
+  const { agent_id, pickup_location, delivery_location, scheduled_time, status, distance, weight, price, compliances } = req.body;
+
+  const fieldsToUpdate = [];
+  const values = [];
+
+  if (agent_id !== undefined) {
+    fieldsToUpdate.push('agent_id = ?');
+    values.push(agent_id);
+  }
+  if (pickup_location !== undefined) {
+    fieldsToUpdate.push('pickup_location = ?');
+    values.push(pickup_location);
+  }
+  if (delivery_location !== undefined) {
+    fieldsToUpdate.push('delivery_location = ?');
+    values.push(delivery_location);
+  }
+  if (scheduled_time !== undefined) {
+    fieldsToUpdate.push('scheduled_time = ?');
+    values.push(scheduled_time);
+  }
+  if (status !== undefined) {
+    fieldsToUpdate.push('status = ?');
+    values.push(status);
+  }
+  if (distance !== undefined) {
+    fieldsToUpdate.push('distance = ?');
+    values.push(distance);
+  }
+  if (weight !== undefined) {
+    fieldsToUpdate.push('weight = ?');
+    values.push(weight);
+  }
+  if (price !== undefined) {
+    fieldsToUpdate.push('price = ?');
+    values.push(price);
+  }
+  if (compliances !== undefined) {
+    fieldsToUpdate.push('compliances = ?');
+    values.push(compliances);
+  }
+
+  if (fieldsToUpdate.length === 0) {
+    return sendErrorResponse(res, 400, 'No fields to update');
+  }
+
+  values.push(id);
+  const query = `UPDATE transfers SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
+
+  try {
+    const result = await executeQuery(query, values);
+    if (result.affectedRows === 0) return sendErrorResponse(res, 404, 'Transfer not found');
+    sendSuccessResponse(res, 200, null, 'Transfer updated successfully');
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Error updating transfer', err.message);
+  }
 };
 
 // Delete a transfer
-exports.deleteTransfer = (req, res) => {
+exports.deleteTransfer = async (req, res) => {
   const { id } = req.query;
 
-  db.query('DELETE FROM transfers WHERE id = ?', [id], (err, results) => {
-    if (err) return sendErrorResponse(res, 500, 'Error deleting transfer', err.message);
-    if (results.affectedRows === 0) return sendErrorResponse(res, 404, 'Transfer not found');
+  try {
+    const result = await executeQuery('DELETE FROM transfers WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return sendErrorResponse(res, 404, 'Transfer not found');
     sendSuccessResponse(res, 200, null, 'Transfer deleted successfully');
-  });
+  } catch (err) {
+    sendErrorResponse(res, 500, 'Error deleting transfer', err.message);
+  }
 };
