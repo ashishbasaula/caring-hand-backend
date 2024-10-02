@@ -1,9 +1,10 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const db = require('../models/db');
+ 
  
 require('dotenv').config()
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
+const { executeQuery } = require('../models/db');
 
 const validRoles = ['admin', 'funeral_home', 'transport_agent'];
 
@@ -15,7 +16,7 @@ exports.login = async (req, res) => {
     return sendErrorResponse(res, 400, 'All fields are required');
   }
   try {
-    const results = await db.executeQuery('SELECT * FROM users WHERE email = ?', [email]);
+    const results = await executeQuery('SELECT * FROM users WHERE email = ?', [email]);
     if (results.length === 0) return res.status(404).send({ message: 'User not found' });
 
     const user = results[0];
@@ -61,7 +62,7 @@ exports.getUsers = async (req, res) => {
   }
 
   try {
-    const results = await db.executeQuery(query, queryParams);
+    const results = await executeQuery(query, queryParams);
     return sendSuccessResponse(res, 200, results, 'Users retrieved successfully');
   } catch (err) {
     return sendErrorResponse(res, 500, 'Server error', err.message);
@@ -83,7 +84,7 @@ exports.addUser = async (req, res) => {
   }
 
   try {
-    const results = await db.executeQuery('SELECT * FROM users WHERE email = ?', [email]);
+    const results = await  executeQuery('SELECT * FROM users WHERE email = ?', [email]);
     if (results.length > 0) return sendErrorResponse(res, 400, 'User already exists');
 
     // Hash the password
@@ -169,7 +170,7 @@ exports.changePassword = async (req, res) => {
   }
 
   try {
-    const results = await db.executeQuery('SELECT password FROM users WHERE id = ?', [userId]);
+    const results = await executeQuery('SELECT password FROM users WHERE id = ?', [userId]);
     if (results.length === 0) {
       return sendErrorResponse(res, 404, 'User not found');
     }
@@ -187,7 +188,7 @@ exports.changePassword = async (req, res) => {
     const newPasswordHash = bcrypt.hashSync(new_password, salt);
 
     // Update the password in the database
-    await db.executeQuery('UPDATE users SET password = ? WHERE id = ?', [newPasswordHash, userId]);
+    await executeQuery('UPDATE users SET password = ? WHERE id = ?', [newPasswordHash, userId]);
 
     sendSuccessResponse(res, 200, null, 'Password updated successfully');
   } catch (err) {
@@ -206,7 +207,7 @@ exports.addNotificationToken = async (req, res) => {
 
   try {
     // Get the existing notification tokens for the user
-    const results = await db.executeQuery('SELECT notification_tokens FROM users WHERE id = ?', [id]);
+    const results = await executeQuery('SELECT notification_tokens FROM users WHERE id = ?', [id]);
 
     if (results.length === 0) {
       return res.status(404).send({ message: 'User not found' });
@@ -227,7 +228,7 @@ exports.addNotificationToken = async (req, res) => {
     existingTokens.push(token);
 
     // Update the user's notification_tokens field
-    await db.executeQuery('UPDATE users SET notification_tokens = ? WHERE id = ?', [JSON.stringify(existingTokens), id]);
+    await executeQuery('UPDATE users SET notification_tokens = ? WHERE id = ?', [JSON.stringify(existingTokens), id]);
 
     res.status(200).send({ message: 'Notification token added successfully' });
   } catch (err) {
