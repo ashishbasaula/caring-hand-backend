@@ -140,7 +140,7 @@ exports.updateUser = async (req, res) => {
   const query = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
 
   try {
-    await db. executeQuery(query, values);
+    await executeQuery(query, values);
     res.status(200).send({ message: 'User updated successfully' });
   } catch (err) {
     return res.status(500).send({ message: 'Error updating user', error: err.message });
