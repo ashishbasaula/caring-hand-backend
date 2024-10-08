@@ -19,6 +19,25 @@ const connection = mysql.createPool({
     rejectUnauthorized: false // Disable SSL certificate verification
   }
 });
+
+
+// create a connection for the local host 
+// const connection = mysql.createPool({
+//   host: 'localhost',         // Localhost environment
+//   user: 'root',              // Adjust with your local MySQL user
+//   password: '',              // Your local MySQL password (leave blank if none)
+//   database: 'caring_hands',  // Database name
+//   port: 3306,                // Default MySQL port
+//   waitForConnections: true,  // Wait for a connection to be available
+//   connectionLimit: 20,       // Increase the connection limit
+//   queueLimit: 100,           // Limit the number of queued connections
+//   connectTimeout: 30000,     // Adjust timeout for new connections (30 seconds)
+//   enableKeepAlive: true,     // Enable keep-alive
+//   keepAliveInitialDelay: 10000, // Keep-alive initial delay (10 seconds)
+//   maxIdle: 10,               // Allow up to 10 idle connections
+//   idleTimeout: 60 * 1000,    // Close idle connections after 60 seconds
+//   ssl: false                 // Disable SSL for localhost
+// });
 // Function to handle queries with reconnection and retry logic
 function executeQuery(query, params = [], retries = 3) {
   return new Promise((resolve, reject) => {

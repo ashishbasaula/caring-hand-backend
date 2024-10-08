@@ -1,5 +1,3 @@
-// controller/transferController.js
-
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/responseUtils');
 const { executeQuery } = require('../models/db'); // Use executeQuery function
 
@@ -7,11 +5,11 @@ const { executeQuery } = require('../models/db'); // Use executeQuery function
 exports.createTransfer = async (req, res) => {
   const { 
     funeral_home_id, agent_id, pickup_location, delivery_location, 
-    scheduled_time, distance, weight, price, doc, pick_lat, pick_long, drop_lat, drop_long
+    scheduled_time, distance, weight, price, doc, pick_lat, pick_long, drop_lat, drop_long, transferName, pickup_type 
   } = req.body;
-
+console.log(transferName);
   // Required fields validation
-  if (!funeral_home_id || !pickup_location || !delivery_location || !scheduled_time || !distance || !weight || !price) {
+  if (!funeral_home_id || !pickup_location || !delivery_location || !scheduled_time || !distance || !weight || !price || !transferName || !pickup_type) {
     return sendErrorResponse(res, 400, 'All required fields are not provided');
   }
 
@@ -19,12 +17,12 @@ exports.createTransfer = async (req, res) => {
     // Insert the new transfer
     const query = `
       INSERT INTO transfers 
-      (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents, pickup_lat, pickup_lng, drop_lat, drop_lng) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (funeral_home_id, agent_id, pickup_location, delivery_location, scheduled_time, distance, weight, price, documents, pickup_lat, pickup_lng, drop_lat, drop_lng, transferName, pickup_type) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const result = await executeQuery(query, [
-      funeral_home_id, agent_id || null, pickup_location, delivery_location, 
-      scheduled_time, distance, weight, price, doc, pick_lat, pick_long, drop_lat, drop_long
+      funeral_home_id, JSON.stringify(agent_id), pickup_location, delivery_location, 
+      scheduled_time, distance, weight, price, doc, pick_lat, pick_long, drop_lat, drop_long, transferName, pickup_type
     ]);
 
     sendSuccessResponse(res, 201, { id: result.insertId }, 'Transfer created successfully');
@@ -42,7 +40,8 @@ exports.getAllTransfers = async (req, res) => {
 
   let query = 'SELECT * FROM transfers WHERE 1=1'; // Default clause to append conditions
   const queryParams = [];
-
+  
+  
   // Conditionally add filters
   if (status && status !== "null") {
     query += ' AND status = ?';
@@ -53,11 +52,16 @@ exports.getAllTransfers = async (req, res) => {
     queryParams.push(funeral_home_id);
   }
   if (agent_id && agent_id !== "all") {
-    query += ' AND agent_id = ?';
-    queryParams.push(agent_id);
-  } else if (agent_id === "all") {
-    query += ' AND agent_id IS NOT NULL';
-  }
+    // Ensure that the query works for both single and multi-agent cases
+    query += ` AND (JSON_CONTAINS(agent_id, ?, '$') OR (agent_id = ? AND JSON_TYPE(agent_id) = 'ARRAY'))`;
+    queryParams.push(agent_id,agent_id);  // JSON_CONTAINS expects a JSON formatted string
+} else if (agent_id === "all") {
+    // If 'all' is specified, we are checking for any non-null, non-empty agent IDs
+    query += ' AND (JSON_LENGTH(agent_id) > 0 OR agent_id IS NOT NULL)';
+}
+
+  
+  
   if (pickup_location) {
     query += ' AND pickup_location LIKE ?';
     queryParams.push(`%${pickup_location}%`);
@@ -81,7 +85,8 @@ exports.getAllTransfers = async (req, res) => {
   }
 
   query += ' ORDER BY created_at DESC';
-
+  console.log('Query:', query);
+  console.log('Params:', queryParams);
   try {
     const results = await executeQuery(query, queryParams);
     sendSuccessResponse(res, 200, results, 'Retrieved all transfers');
@@ -127,8 +132,6 @@ exports.getTransferByFuneralHomeId = async (req, res) => {
 
 // Update transfer details
 exports.updateTransfer = async (req, res) => {
-
-
   const { id } = req.query;
   const { agent_id, pickup_location, delivery_location, scheduled_time, status, distance, weight, price, compliances } = req.body;
 
@@ -137,7 +140,7 @@ exports.updateTransfer = async (req, res) => {
 
   if (agent_id !== undefined) {
     fieldsToUpdate.push('agent_id = ?');
-    values.push(agent_id);
+    values.push(JSON.stringify(agent_id));
   }
   if (pickup_location !== undefined) {
     fieldsToUpdate.push('pickup_location = ?');
@@ -168,7 +171,6 @@ exports.updateTransfer = async (req, res) => {
     values.push(price);
   }
   if (compliances !== undefined) {
-     
     fieldsToUpdate.push('compliances = ?');
     values.push(compliances);
   }

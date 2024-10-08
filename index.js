@@ -8,6 +8,7 @@ const funeralHomeReport=require('./routes/funeralHomeReportRoute')
 const calculateTransferCost=require('./routes/pricingRoute');
 const pricingParameterController=require('./routes/pricingParameterRoutes')
 const notification=require('./routes/notificationRoutes');
+const imageTagController=require('./routes/imageTagRoute');
 const path = require('path');
 
 const { sendErrorResponse } = require('./utils/responseUtils');
@@ -35,6 +36,8 @@ app.use('/notification', notification);
 
 app.use('/pricing',calculateTransferCost);
 app.use('/costParam',pricingParameterController);
+// this is for the user image tag
+app.use("/imagtags",imageTagController);
 
 
 
